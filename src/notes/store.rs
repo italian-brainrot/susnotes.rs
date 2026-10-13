@@ -24,6 +24,15 @@ impl NoteStore {
         self.password = Some(password.to_string());
     }
 
+    pub fn clear_password(&mut self) {
+        self.password = None;
+        self.settings.password_hash = None;
+        self.settings.password_salt = None;
+        if let Err(e) = self.settings.save() {
+            log::warn!("Failed to save settings: {}", e);
+        }
+    }
+
     #[allow(dead_code)]
     pub fn has_password(&self) -> bool {
         self.password.as_ref().map(|p| !p.is_empty()).unwrap_or(false)
@@ -359,6 +368,23 @@ mod tests {
 
         store.delete_note(&id).unwrap();
         assert!(store.get_note(&id).is_none());
+    }
+
+    #[test]
+    fn test_clear_password() {
+        let settings = temp_settings();
+        let mut store = NoteStore::new(settings);
+
+        // Set a password
+        store.set_initial_password("my-password");
+        assert!(store.check_password("my-password"));
+        assert!(store.get_settings().password_hash.is_some());
+
+        // Clear it
+        store.clear_password();
+        assert!(!store.check_password("my-password"));
+        assert!(store.get_settings().password_hash.is_none());
+        assert!(store.get_settings().password_salt.is_none());
     }
 
     #[test]

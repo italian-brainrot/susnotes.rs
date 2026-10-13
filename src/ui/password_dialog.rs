@@ -56,12 +56,11 @@ impl PasswordDialog {
                 ui.separator();
 
                 // Password input
-                let response = egui::TextEdit::singleline(&mut self.password)
+                egui::TextEdit::singleline(&mut self.password)
                     .password(true)
                     .hint_text("Password")
                     .desired_width(250.0)
                     .show(ui);
-                response.response.request_focus();
 
                 // Confirm password (for create/change)
                 if self.mode != PasswordMode::Enter {
@@ -79,20 +78,16 @@ impl PasswordDialog {
                 ui.separator();
 
                 ui.horizontal(|ui| {
-                    if ui.add_enabled(!self.password.is_empty(), egui::Button::new("Submit")).clicked() {
+                    if ui.button("Submit").clicked() {
                         self.submit(store);
                     }
 
                     if self.mode == PasswordMode::Create {
                         if ui.button("Cancel").clicked() {
-                            // Allow continuing without password
-                            store.set_password("");
-                            // Create default note
-                            let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-                            store.get_or_create_daily_note(&today);
                             self.mode = PasswordMode::Enter;
                             self.password.clear();
                             self.confirm_password.clear();
+                            self.error.clear();
                         }
                     }
 
@@ -108,7 +103,11 @@ impl PasswordDialog {
 
                 // Help text
                 ui.separator();
-                ui.small("💡 You can also create a vault without a password (less secure).");
+                if self.mode == PasswordMode::Create {
+                    ui.small("💡 Leave both fields empty to create a vault without a password (less secure). Note: existing encrypted notes will be lost.");
+                } else if self.mode == PasswordMode::Enter {
+                    ui.small("💡 Forgot your password? Click \"Create new vault\" to start fresh. Note: existing encrypted notes will be lost.");
+                }
             });
         });
     }
@@ -129,15 +128,23 @@ impl PasswordDialog {
                 }
             }
             PasswordMode::Create => {
-                if self.password.len() < 4 {
+                // Empty password is allowed (no encryption)
+                if !self.password.is_empty() && self.password.len() < 4 {
                     self.error = "Password must be at least 4 characters".to_string();
                     return;
                 }
-                if self.password != self.confirm_password {
+                if !self.password.is_empty() && self.password != self.confirm_password {
                     self.error = "Passwords do not match".to_string();
                     return;
                 }
-                store.set_initial_password(&self.password);
+                if self.password.is_empty() {
+                    // No password: clear any existing hash and proceed
+                    store.clear_password();
+                } else {
+                    store.set_initial_password(&self.password);
+                }
+                let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+                store.get_or_create_daily_note(&today);
                 self.mode = PasswordMode::Enter;
                 self.password.clear();
                 self.confirm_password.clear();
