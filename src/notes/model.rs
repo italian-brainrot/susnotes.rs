@@ -43,14 +43,14 @@ impl Note {
     pub fn extract_links(&self) -> Vec<String> {
         let mut links = Vec::new();
         // Match [[note name]]
-        for cap in regex::Regex::new(r"\[\[([^\]]+)\]\]").unwrap().find_iter(&self.content) {
+        let re_bracket = regex::Regex::new(r"\[\[([^\]]+)\]\]").expect("valid regex: [[note]] pattern");
+        for cap in re_bracket.find_iter(&self.content) {
             links.push(cap.as_str().to_string());
         }
         // Match #note_name (word characters and spaces)
-        for cap in regex::Regex::new(r"#([A-Za-z0-9_][A-Za-z0-9_ ]{0,99})")
-            .unwrap()
-            .find_iter(&self.content)
-        {
+        let re_hash = regex::Regex::new(r"#([A-Za-z0-9_][A-Za-z0-9_ ]{0,99})")
+            .expect("valid regex: #note_name pattern");
+        for cap in re_hash.find_iter(&self.content) {
             let link = cap.as_str().to_string();
             if !links.contains(&link) {
                 links.push(link);

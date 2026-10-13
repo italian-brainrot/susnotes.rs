@@ -15,6 +15,7 @@ pub struct App {
     pub editor_state: Option<EditorState>,
     pub journal_state: Option<JournalState>,
     pub _pending_note_link: Option<String>,
+    pub search_query: String,
 }
 
 #[derive(Debug, Clone)]
@@ -53,6 +54,7 @@ impl App {
             editor_state: None,
             journal_state: None,
             _pending_note_link: None,
+            search_query: String::new(),
         };
 
         if !needs_password {

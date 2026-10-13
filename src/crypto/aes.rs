@@ -8,7 +8,7 @@ type HmacSha256 = hmac::Hmac<Sha256>;
 /// Derive encryption key from password using PBKDF2
 pub fn derive_key(password: &str, salt: &[u8]) -> [u8; 32] {
     let mut key = [0u8; 32];
-    let _ = pbkdf2::<HmacSha256>(password.as_bytes(), salt, 100_000, &mut key);
+    let _ = pbkdf2::<HmacSha256>(password.as_bytes(), salt, 600_000, &mut key);
     key
 }
 
@@ -74,7 +74,13 @@ pub fn verify_password(password: &str, hash: &str, salt: &str) -> bool {
         Ok(s) => s,
         Err(_) => return false,
     };
-    let expected_hash = hex::decode(hash).unwrap_or_default();
+    let expected_hash = match hex::decode(hash) {
+        Ok(h) => h,
+        Err(e) => {
+            log::warn!("Failed to decode password hash: {}", e);
+            return false;
+        }
+    };
     let actual_hash = derive_key(password, &salt_bytes);
     expected_hash == actual_hash
 }

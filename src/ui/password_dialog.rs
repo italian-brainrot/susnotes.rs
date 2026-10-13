@@ -5,6 +5,7 @@ pub struct PasswordDialog {
     mode: PasswordMode,
     password: String,
     confirm_password: String,
+    old_password: String,
     error: String,
 }
 
@@ -22,6 +23,7 @@ impl PasswordDialog {
             mode: PasswordMode::Enter,
             password: String::new(),
             confirm_password: String::new(),
+            old_password: String::new(),
             error: String::new(),
         }
     }
@@ -42,6 +44,12 @@ impl PasswordDialog {
                     }
                     PasswordMode::Change => {
                         ui.label("Change your password.");
+                        // Old password input
+                        egui::TextEdit::singleline(&mut self.old_password)
+                            .password(true)
+                            .hint_text("Current password")
+                            .desired_width(250.0)
+                            .show(ui);
                     }
                 }
 
@@ -135,6 +143,14 @@ impl PasswordDialog {
                 self.confirm_password.clear();
             }
             PasswordMode::Change => {
+                if self.old_password.is_empty() {
+                    self.error = "Please enter your current password".to_string();
+                    return;
+                }
+                if !store.check_password(&self.old_password) {
+                    self.error = "Current password is incorrect".to_string();
+                    return;
+                }
                 if self.password.len() < 4 {
                     self.error = "Password must be at least 4 characters".to_string();
                     return;
@@ -143,11 +159,14 @@ impl PasswordDialog {
                     self.error = "Passwords do not match".to_string();
                     return;
                 }
-                // For now, just set the new password (would need old password in real app)
-                store.set_initial_password(&self.password);
+                if let Err(e) = store.change_password(&self.old_password, &self.password) {
+                    self.error = e;
+                    return;
+                }
                 self.mode = PasswordMode::Enter;
                 self.password.clear();
                 self.confirm_password.clear();
+                self.old_password.clear();
             }
         }
     }

@@ -1,6 +1,5 @@
 use crate::ui::app::App;
 use eframe::egui;
-use pulldown_cmark::{Parser, Options, Event, Tag, TagEnd, CodeBlockKind};
 
 pub struct EditorPanel;
 
@@ -76,8 +75,6 @@ impl EditorPanel {
             app.editor_state = Some(crate::ui::app::EditorState::View);
         }
 
-        ui.separator();
-        Self::show_preview(ui, &content);
     }
 
     fn show_view_mode(ui: &mut egui::Ui, app: &mut App, note_id: &str) {
@@ -90,149 +87,7 @@ impl EditorPanel {
             }
 
             let content = note.content.clone();
-            let parser = Parser::new_ext(&content, Options::all());
-            let mut in_code_block = false;
-            let mut code_block_content = String::new();
-
-            for event in parser {
-                match event {
-                    Event::Start(Tag::Heading { level, .. }) => {
-                        match level {
-                            pulldown_cmark::HeadingLevel::H1 => { ui.heading(""); },
-                            pulldown_cmark::HeadingLevel::H2 => { ui.strong(""); },
-                            _ => { ui.label(""); },
-                        }
-                    }
-                    Event::End(TagEnd::Heading(_)) => {}
-                    Event::Start(Tag::Paragraph) => {}
-                    Event::End(TagEnd::Paragraph) => {
-                        ui.separator();
-                    }
-                    Event::Start(Tag::BlockQuote(_)) => {}
-                    Event::End(TagEnd::BlockQuote(_)) => {}
-                    Event::Start(Tag::List(_)) => {}
-                    Event::End(TagEnd::List(_)) => {}
-                    Event::Start(Tag::Item) => {
-                        ui.label("• ");
-                    }
-                    Event::End(TagEnd::Item) => {}
-                    Event::Start(Tag::CodeBlock(kind)) => {
-                        in_code_block = true;
-                        code_block_content.clear();
-                        match kind {
-                            CodeBlockKind::Fenced(_) => {}
-                            CodeBlockKind::Indented => {}
-                        }
-                    }
-                    Event::End(TagEnd::CodeBlock) => {
-                        in_code_block = false;
-                        // Show code block with copy button
-                        ui.horizontal(|ui| {
-                            ui.code(code_block_content.clone());
-                            if ui.small_button("📋 Copy").clicked() {
-                                ui.ctx().copy_text(code_block_content.clone());
-                            }
-                        });
-                    }
-                    Event::Start(Tag::Link { dest_url, .. }) => {
-                        if ui.link(dest_url.to_string()).clicked() {
-                            // Handle link click
-                        }
-                    }
-                    Event::End(TagEnd::Link) => {}
-                    Event::Text(text) => {
-                        if in_code_block {
-                            code_block_content.push_str(&text);
-                        } else {
-                            // Check for note links
-                            let text = text.to_string();
-                            let mut remaining = text.as_str();
-                            let mut has_link = false;
-                            let mut link_parts = Vec::new();
-
-                            while let Some(pos) = remaining.find(|c| c == '#' || c == '[') {
-                                let prefix = &remaining[..pos];
-                                if !prefix.is_empty() {
-                                    link_parts.push(prefix.to_string());
-                                }
-                                remaining = &remaining[pos..];
-
-                                if remaining.starts_with('#') {
-                                    let after_hash = &remaining[1..];
-                                    let end = after_hash.find(|c: char| !c.is_alphanumeric() && c != ' ' && c != '_').unwrap_or(after_hash.len());
-                                    let note_name = &after_hash[..end];
-                                    let link_text = &remaining[..end + 1];
-                                    link_parts.push(format!("[{}]({})", link_text, format!("#note:{}", note_name)));
-                                    remaining = &remaining[end + 1..];
-                                    has_link = true;
-                                } else if remaining.starts_with("[[") {
-                                    let after_open = &remaining[2..];
-                                    let end = after_open.find("]]").map(|i| i + 2).unwrap_or(after_open.len());
-                                    let note_name = &after_open[..end];
-                                    let link_text = &remaining[..end + 4];
-                                    link_parts.push(format!("[{}]({})", link_text, format!("#note:{}", note_name)));
-                                    remaining = &remaining[end + 4..];
-                                    has_link = true;
-                                }
-                            }
-                            if !remaining.is_empty() {
-                                link_parts.push(remaining.to_string());
-                            }
-
-                            if has_link {
-                                // Render with clickable links
-                                for part in link_parts {
-                                    if part.starts_with("[") && part.contains("(#note:") {
-                                        if let Some(name_start) = part.find("#note:") {
-                                            let name = &part[name_start + 6..part.len() - 1];
-                                            if ui.link(&part[..part.len() - 1]).clicked() {
-                                                // Store the link to follow for next frame
-                                                app._pending_note_link = Some(name.to_string());
-                                            }
-                                        } else {
-                                            ui.label(&part);
-                                        }
-                                    } else {
-                                        ui.label(&part);
-                                    }
-                                }
-                            } else {
-                                ui.label(&text);
-                            }
-                        }
-                    }
-                    Event::Code(code) => {
-                        if in_code_block {
-                            code_block_content.push_str(&code);
-                        } else {
-                            ui.code(code.to_string());
-                        }
-                    }
-                    Event::Html(html) => {
-                        ui.label(html.to_string());
-                    }
-                    Event::SoftBreak => {
-                        if !in_code_block {
-                            ui.label("");
-                        }
-                    }
-                    Event::HardBreak => {
-                        if !in_code_block {
-                            ui.separator();
-                        }
-                    }
-                    Event::Rule => {
-                        ui.separator();
-                    }
-                    Event::Start(Tag::Emphasis) => {}
-                    Event::End(TagEnd::Emphasis) => {}
-                    Event::Start(Tag::Strong) => {}
-                    Event::End(TagEnd::Strong) => {}
-                    Event::Start(Tag::Strikethrough) => {}
-                    Event::End(TagEnd::Strikethrough) => {}
-                    _ => {}
-                }
-            }
+            Self::render_markdown_with_links(ui, app, &content);
         }
 
         // Handle pending note link
@@ -241,58 +96,145 @@ impl EditorPanel {
         }
     }
 
-    fn show_preview(ui: &mut egui::Ui, content: &str) {
-        ui.separator();
-        ui.strong("Preview");
-        ui.separator();
+    /// Render markdown with note link support (#note_name and [[note name]])
+    fn render_markdown_with_links(ui: &mut egui::Ui, app: &mut App, content: &str) {
+        let parser = pulldown_cmark::Parser::new_ext(content, pulldown_cmark::Options::all());
+        let mut in_code_block = false;
+        let mut code_block_content = String::new();
 
-        let parser = Parser::new_ext(content, Options::all());
         for event in parser {
             match event {
-                Event::Start(Tag::Heading { level, .. }) => {
+                pulldown_cmark::Event::Start(pulldown_cmark::Tag::Heading { level, .. }) => {
                     match level {
                         pulldown_cmark::HeadingLevel::H1 => { ui.heading(""); },
                         pulldown_cmark::HeadingLevel::H2 => { ui.strong(""); },
                         _ => { ui.label(""); },
                     }
                 }
-                Event::End(TagEnd::Heading(_)) => {}
-                Event::Start(Tag::Paragraph) => {}
-                Event::End(TagEnd::Paragraph) => {
+                pulldown_cmark::Event::End(pulldown_cmark::TagEnd::Heading(_)) => {}
+                pulldown_cmark::Event::Start(pulldown_cmark::Tag::Paragraph) => {}
+                pulldown_cmark::Event::End(pulldown_cmark::TagEnd::Paragraph) => {
                     ui.separator();
                 }
-                Event::Start(Tag::BlockQuote(_)) => {}
-                Event::End(TagEnd::BlockQuote(_)) => {}
-                Event::Start(Tag::List(_)) => {}
-                Event::End(TagEnd::List(_)) => {}
-                Event::Start(Tag::Item) => {
+                pulldown_cmark::Event::Start(pulldown_cmark::Tag::BlockQuote(_)) => {}
+                pulldown_cmark::Event::End(pulldown_cmark::TagEnd::BlockQuote(_)) => {}
+                pulldown_cmark::Event::Start(pulldown_cmark::Tag::List(_)) => {}
+                pulldown_cmark::Event::End(pulldown_cmark::TagEnd::List(_)) => {}
+                pulldown_cmark::Event::Start(pulldown_cmark::Tag::Item) => {
                     ui.label("• ");
                 }
-                Event::End(TagEnd::Item) => {}
-                Event::Start(Tag::CodeBlock(_)) => {}
-                Event::End(TagEnd::CodeBlock) => {}
-                Event::Text(text) => {
-                    ui.label(text.to_string());
+                pulldown_cmark::Event::End(pulldown_cmark::TagEnd::Item) => {}
+                pulldown_cmark::Event::Start(pulldown_cmark::Tag::CodeBlock(kind)) => {
+                    in_code_block = true;
+                    code_block_content.clear();
+                    match kind {
+                        pulldown_cmark::CodeBlockKind::Fenced(_) => {}
+                        pulldown_cmark::CodeBlockKind::Indented => {}
+                    }
                 }
-                Event::Code(code) => {
-                    ui.code(code.to_string());
+                pulldown_cmark::Event::End(pulldown_cmark::TagEnd::CodeBlock) => {
+                    in_code_block = false;
+                    ui.horizontal(|ui| {
+                        ui.code(code_block_content.clone());
+                        if ui.small_button("📋 Copy").clicked() {
+                            ui.ctx().copy_text(code_block_content.clone());
+                        }
+                    });
                 }
-                Event::Html(html) => {
+                pulldown_cmark::Event::Start(pulldown_cmark::Tag::Link { dest_url, .. }) => {
+                    if ui.link(dest_url.to_string()).clicked() {
+                        // Handle link click
+                    }
+                }
+                pulldown_cmark::Event::End(pulldown_cmark::TagEnd::Link) => {}
+                pulldown_cmark::Event::Text(text) => {
+                    if in_code_block {
+                        code_block_content.push_str(&text);
+                    } else {
+                        // Check for note links
+                        let text = text.to_string();
+                        let mut remaining = text.as_str();
+                        let mut has_link = false;
+                        let mut link_parts = Vec::new();
+
+                        while let Some(pos) = remaining.find(|c: char| c == '#' || c == '[') {
+                            let prefix = &remaining[..pos];
+                            if !prefix.is_empty() {
+                                link_parts.push(prefix.to_string());
+                            }
+                            remaining = &remaining[pos..];
+
+                            if remaining.starts_with('#') {
+                                let after_hash = &remaining[1..];
+                                let end = after_hash.find(|c: char| !c.is_alphanumeric() && c != ' ' && c != '_').unwrap_or(after_hash.len());
+                                let note_name = &after_hash[..end];
+                                let link_text = &remaining[..end + 1];
+                                link_parts.push(format!("[{}]({})", link_text, format!("#note:{}", note_name)));
+                                remaining = &remaining[end + 1..];
+                                has_link = true;
+                            } else if remaining.starts_with("[[") {
+                                let after_open = &remaining[2..];
+                                let end = after_open.find("]]").map(|i| i + 2).unwrap_or(after_open.len());
+                                let note_name = &after_open[..end];
+                                let link_text = &remaining[..end + 4];
+                                link_parts.push(format!("[{}]({})", link_text, format!("#note:{}", note_name)));
+                                remaining = &remaining[end + 4..];
+                                has_link = true;
+                            }
+                        }
+                        if !remaining.is_empty() {
+                            link_parts.push(remaining.to_string());
+                        }
+
+                        if has_link {
+                            for part in link_parts {
+                                if part.starts_with("[") && part.contains("(#note:") {
+                                    if let Some(name_start) = part.find("#note:") {
+                                        let name = &part[name_start + 6..part.len() - 1];
+                                        if ui.link(&part[..part.len() - 1]).clicked() {
+                                            app._pending_note_link = Some(name.to_string());
+                                        }
+                                    } else {
+                                        ui.label(&part);
+                                    }
+                                } else {
+                                    ui.label(&part);
+                                }
+                            }
+                        } else {
+                            ui.label(&text);
+                        }
+                    }
+                }
+                pulldown_cmark::Event::Code(code) => {
+                    if in_code_block {
+                        code_block_content.push_str(&code);
+                    } else {
+                        ui.code(code.to_string());
+                    }
+                }
+                pulldown_cmark::Event::Html(html) => {
                     ui.label(html.to_string());
                 }
-                Event::SoftBreak => {}
-                Event::HardBreak => {
+                pulldown_cmark::Event::SoftBreak => {
+                    if !in_code_block {
+                        ui.label("");
+                    }
+                }
+                pulldown_cmark::Event::HardBreak => {
+                    if !in_code_block {
+                        ui.separator();
+                    }
+                }
+                pulldown_cmark::Event::Rule => {
                     ui.separator();
                 }
-                Event::Rule => {
-                    ui.separator();
-                }
-                Event::Start(Tag::Emphasis) => {}
-                Event::End(TagEnd::Emphasis) => {}
-                Event::Start(Tag::Strong) => {}
-                Event::End(TagEnd::Strong) => {}
-                Event::Start(Tag::Strikethrough) => {}
-                Event::End(TagEnd::Strikethrough) => {}
+                pulldown_cmark::Event::Start(pulldown_cmark::Tag::Emphasis) => {}
+                pulldown_cmark::Event::End(pulldown_cmark::TagEnd::Emphasis) => {}
+                pulldown_cmark::Event::Start(pulldown_cmark::Tag::Strong) => {}
+                pulldown_cmark::Event::End(pulldown_cmark::TagEnd::Strong) => {}
+                pulldown_cmark::Event::Start(pulldown_cmark::Tag::Strikethrough) => {}
+                pulldown_cmark::Event::End(pulldown_cmark::TagEnd::Strikethrough) => {}
                 _ => {}
             }
         }

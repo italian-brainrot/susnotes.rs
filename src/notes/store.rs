@@ -30,8 +30,8 @@ impl NoteStore {
     }
 
     pub fn check_password(&self, password: &str) -> bool {
-        match (&self.password, &self.settings.password_hash, &self.settings.password_salt) {
-            (Some(_), Some(hash), Some(salt)) => {
+        match (&self.settings.password_hash, &self.settings.password_salt) {
+            (Some(hash), Some(salt)) => {
                 crypto::verify_password(password, hash, salt)
             }
             _ => false,
@@ -46,7 +46,6 @@ impl NoteStore {
         self.settings.save().unwrap_or_else(|e| log::warn!("Failed to save settings: {}", e));
     }
 
-    #[allow(dead_code)]
     pub fn change_password(&mut self, old_password: &str, new_password: &str) -> Result<(), String> {
         if !self.check_password(old_password) {
             return Err("Current password is incorrect".to_string());
@@ -213,7 +212,8 @@ impl NoteStore {
                 return id.clone();
             }
         }
-        // Create new note
+        // Create new note on demand (e.g. when following a #link or [[link]])
+        log::debug!("Creating new note: {}", name);
         let note = Note::new(name, "");
         let id = note.id.clone();
         self.notes.insert(id.clone(), note);

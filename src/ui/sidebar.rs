@@ -9,15 +9,14 @@ impl SidebarPanel {
 
         // Search box
         ui.horizontal(|ui| {
-            let mut search = String::new();
-            ui.text_edit_singleline(&mut search);
-            if !search.is_empty() {
+            ui.text_edit_singleline(&mut app.search_query);
+            if !app.search_query.is_empty() {
                 // Filter notes by search term
                 let names: Vec<String> = app
                     .store
                     .get_all_names()
                     .into_iter()
-                    .filter(|n| n.to_lowercase().contains(&search.to_lowercase()))
+                    .filter(|n| n.to_lowercase().contains(&app.search_query.to_lowercase()))
                     .collect();
                 for name in names {
                     Self::note_item(ui, app, &name);
