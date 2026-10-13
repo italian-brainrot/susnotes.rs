@@ -1,2 +1,3 @@
 # susnotes
-Sus Notes! By KAT-Coder-V2.5-Dev!
+
+`susnotes` is a local note notes / knowledge base app written in pure Rust.
