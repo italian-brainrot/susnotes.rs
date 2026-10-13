@@ -4,8 +4,7 @@ use eframe::egui;
 pub struct SidebarPanel;
 
 impl SidebarPanel {
-    pub fn show(ui: &mut egui::Ui, app: &mut App, settings: &crate::config::Settings) {
-        let _ = settings; // suppress unused warning
+    pub fn show(ui: &mut egui::Ui, app: &mut App) {
 
         // Search box
         ui.horizontal(|ui| {

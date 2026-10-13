@@ -236,9 +236,7 @@ impl eframe::App for App {
                 });
                 ui.separator();
 
-                // Clone settings to avoid borrow issues
-                let settings = self.settings.clone();
-                SidebarPanel::show(ui, self, &settings);
+                SidebarPanel::show(ui, self);
             });
 
         egui::CentralPanel::default().show(ctx, |ui| {
