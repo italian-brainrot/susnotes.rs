@@ -1,0 +1,154 @@
+use crate::notes::NoteStore;
+use eframe::egui;
+
+pub struct PasswordDialog {
+    mode: PasswordMode,
+    password: String,
+    confirm_password: String,
+    error: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
+enum PasswordMode {
+    Enter,
+    Create,
+    Change,
+}
+
+impl PasswordDialog {
+    pub fn new() -> Self {
+        Self {
+            mode: PasswordMode::Enter,
+            password: String::new(),
+            confirm_password: String::new(),
+            error: String::new(),
+        }
+    }
+
+    pub fn show(&mut self, ctx: &egui::Context, store: &mut NoteStore) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.heading("🔐 susnotes");
+                ui.separator();
+
+                match self.mode {
+                    PasswordMode::Enter => {
+                        ui.label("Enter your password to unlock your notes.");
+                    }
+                    PasswordMode::Create => {
+                        ui.label("Create a password to encrypt your notes.");
+                        ui.label("This password cannot be recovered if lost.");
+                    }
+                    PasswordMode::Change => {
+                        ui.label("Change your password.");
+                    }
+                }
+
+                ui.separator();
+
+                // Password input
+                let response = egui::TextEdit::singleline(&mut self.password)
+                    .password(true)
+                    .hint_text("Password")
+                    .desired_width(250.0)
+                    .show(ui);
+                response.response.request_focus();
+
+                // Confirm password (for create/change)
+                if self.mode != PasswordMode::Enter {
+                    egui::TextEdit::singleline(&mut self.confirm_password)
+                        .password(true)
+                        .hint_text("Confirm password")
+                        .desired_width(250.0)
+                        .show(ui);
+                }
+
+                if !self.error.is_empty() {
+                    ui.colored_label(egui::Color32::RED, &self.error);
+                }
+
+                ui.separator();
+
+                ui.horizontal(|ui| {
+                    if ui.add_enabled(!self.password.is_empty(), egui::Button::new("Submit")).clicked() {
+                        self.submit(store);
+                    }
+
+                    if self.mode == PasswordMode::Create {
+                        if ui.button("Cancel").clicked() {
+                            // Allow continuing without password
+                            store.set_password("");
+                            // Create default note
+                            let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+                            store.get_or_create_daily_note(&today);
+                            self.mode = PasswordMode::Enter;
+                            self.password.clear();
+                            self.confirm_password.clear();
+                        }
+                    }
+
+                    if self.mode == PasswordMode::Enter {
+                        if ui.button("Create new vault").clicked() {
+                            self.mode = PasswordMode::Create;
+                            self.password.clear();
+                            self.confirm_password.clear();
+                            self.error.clear();
+                        }
+                    }
+                });
+
+                // Help text
+                ui.separator();
+                ui.small("💡 You can also create a vault without a password (less secure).");
+            });
+        });
+    }
+
+    fn submit(&mut self, store: &mut NoteStore) {
+        self.error.clear();
+
+        match self.mode {
+            PasswordMode::Enter => {
+                if store.check_password(&self.password) {
+                    store.set_password(&self.password);
+                    let _ = store.load_all();
+                    self.mode = PasswordMode::Enter;
+                    self.password.clear();
+                    self.confirm_password.clear();
+                } else {
+                    self.error = "Incorrect password".to_string();
+                }
+            }
+            PasswordMode::Create => {
+                if self.password.len() < 4 {
+                    self.error = "Password must be at least 4 characters".to_string();
+                    return;
+                }
+                if self.password != self.confirm_password {
+                    self.error = "Passwords do not match".to_string();
+                    return;
+                }
+                store.set_initial_password(&self.password);
+                self.mode = PasswordMode::Enter;
+                self.password.clear();
+                self.confirm_password.clear();
+            }
+            PasswordMode::Change => {
+                if self.password.len() < 4 {
+                    self.error = "Password must be at least 4 characters".to_string();
+                    return;
+                }
+                if self.password != self.confirm_password {
+                    self.error = "Passwords do not match".to_string();
+                    return;
+                }
+                // For now, just set the new password (would need old password in real app)
+                store.set_initial_password(&self.password);
+                self.mode = PasswordMode::Enter;
+                self.password.clear();
+                self.confirm_password.clear();
+            }
+        }
+    }
+}
