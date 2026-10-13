@@ -50,8 +50,17 @@ impl NoteStore {
         if !self.check_password(old_password) {
             return Err("Current password is incorrect".to_string());
         }
-        self.set_initial_password(new_password);
+        self.update_hash(new_password);
         Ok(())
+    }
+
+    /// Update the password hash directly without re-verifying (for internal use after check_password).
+    fn update_hash(&mut self, password: &str) {
+        let (hash, salt) = crypto::hash_password(password);
+        self.settings.password_hash = Some(hash);
+        self.settings.password_salt = Some(salt);
+        self.password = Some(password.to_string());
+        self.settings.save().unwrap_or_else(|e| log::warn!("Failed to save settings: {}", e));
     }
 
     pub fn ensure_folders(&self) -> Result<PathBuf, String> {
@@ -253,5 +262,115 @@ impl NoteStore {
     #[allow(dead_code)]
     pub fn update_settings(&mut self, settings: Settings) {
         self.settings = settings;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+    fn temp_settings() -> Settings {
+        let temp_dir = env::temp_dir().join("susnotes_test");
+        let _ = fs::create_dir_all(&temp_dir);
+        let _ = fs::create_dir_all(temp_dir.join("pages"));
+        let _ = fs::create_dir_all(temp_dir.join("assets"));
+        Settings {
+            notes_folder: Some(temp_dir),
+            ..Settings::default()
+        }
+    }
+
+    #[test]
+    fn test_save_load_roundtrip() {
+        let settings = temp_settings();
+        let mut store = NoteStore::new(settings);
+
+        let note = Note::new("Test Note", "Hello, world!");
+        let id = note.id.clone();
+        store.notes.insert(id.clone(), note);
+        store.save_note(store.notes.get(&id).unwrap().clone()).unwrap();
+
+        // Reload from disk
+        store.load_all().unwrap();
+        assert_eq!(store.get_note(&id).unwrap().name, "Test Note");
+        assert_eq!(store.get_note(&id).unwrap().content, "Hello, world!");
+    }
+
+    #[test]
+    fn test_password_change_flow() {
+        let settings = temp_settings();
+        let mut store = NoteStore::new(settings);
+
+        // Set initial password
+        store.set_initial_password("old-password");
+        assert!(store.check_password("old-password"));
+        assert!(!store.check_password("wrong-password"));
+
+        // Change password
+        store.change_password("old-password", "new-password").unwrap();
+        assert!(!store.check_password("old-password"));
+        assert!(store.check_password("new-password"));
+
+        // Wrong old password should fail
+        let result = store.change_password("wrong-password", "another-password");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_daily_note_detection() {
+        let settings = temp_settings();
+        let mut store = NoteStore::new(settings);
+
+        let daily = Note::new("2026-10-13", "Today's notes");
+        let regular = Note::new("Random Note", "Some content");
+
+        store.notes.insert(daily.id.clone(), daily);
+        store.notes.insert(regular.id.clone(), regular);
+
+        let daily_notes = store.get_daily_notes();
+        let non_daily = store.get_non_daily_notes();
+
+        assert_eq!(daily_notes.len(), 1);
+        assert_eq!(non_daily.len(), 1);
+        assert!(daily_notes[0].name == "2026-10-13");
+        assert!(non_daily[0].name == "Random Note");
+    }
+
+    #[test]
+    fn test_find_note_by_name_creates_if_missing() {
+        let settings = temp_settings();
+        let mut store = NoteStore::new(settings);
+
+        let id = store.find_note_by_name("New Note");
+        assert!(!id.is_empty());
+        assert!(store.get_note(&id).is_some());
+        assert_eq!(store.get_note(&id).unwrap().name, "New Note");
+    }
+
+    #[test]
+    fn test_delete_note() {
+        let settings = temp_settings();
+        let mut store = NoteStore::new(settings);
+
+        let note = Note::new("ToDelete", "content");
+        let id = note.id.clone();
+        store.notes.insert(id.clone(), note);
+
+        store.delete_note(&id).unwrap();
+        assert!(store.get_note(&id).is_none());
+    }
+
+    #[test]
+    fn test_get_or_create_daily_note() {
+        let settings = temp_settings();
+        let mut store = NoteStore::new(settings);
+
+        let id1 = store.get_or_create_daily_note("2026-10-13");
+        let id2 = store.get_or_create_daily_note("2026-10-13");
+
+        // Should return the same ID
+        assert_eq!(id1, id2);
+        assert!(store.get_note(&id1).is_some());
     }
 }

@@ -86,7 +86,10 @@ impl Settings {
             fs::create_dir_all(parent).map_err(|e| format!("Failed to create config dir: {}", e))?;
         }
         let content = serde_json::to_string_pretty(self).map_err(|e| format!("Failed to serialize settings: {}", e))?;
-        fs::write(&path, content).map_err(|e| format!("Failed to save settings: {}", e))?;
+        fs::write(&path, &content).map_err(|e| format!("Failed to save settings: {}", e))?;
+        #[cfg(unix)]
+        std::fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(0o600))
+            .unwrap_or_else(|e| log::warn!("Failed to set permissions on settings file: {}", e));
         log::info!("Saved settings to {}", path.display());
         Ok(())
     }
