@@ -65,6 +65,7 @@ impl EditorPanel {
             if let Some(note) = app.store.get_note_mut(note_id) {
                 note.update_content(&content);
             }
+            app.mark_content_changed();
         }
 
         // Save button
@@ -91,7 +92,7 @@ impl EditorPanel {
         }
 
         // Handle pending note link
-        if let Some(link) = app._pending_note_link.take() {
+        if let Some(link) = app.pending_note_link.take() {
             app.handle_note_link(&link);
         }
     }
@@ -192,7 +193,7 @@ impl EditorPanel {
                                     if let Some(name_start) = part.find("#note:") {
                                         let name = &part[name_start + 6..part.len() - 1];
                                         if ui.link(&part[..part.len() - 1]).clicked() {
-                                            app._pending_note_link = Some(name.to_string());
+                                            app.pending_note_link = Some(name.to_string());
                                         }
                                     } else {
                                         ui.label(&part);

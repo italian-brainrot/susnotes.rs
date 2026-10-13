@@ -2,6 +2,7 @@ use crate::config::{Settings, Theme};
 use crate::notes::NoteStore;
 use crate::ui::{editor::EditorPanel, journal::JournalPanel, sidebar::SidebarPanel, password_dialog::PasswordDialog};
 use eframe::egui;
+use std::time::Instant;
 
 pub struct App {
     pub settings: Settings,
@@ -14,11 +15,12 @@ pub struct App {
     pub sidebar_width: f32,
     pub editor_state: Option<EditorState>,
     pub journal_state: Option<JournalState>,
-    pub _pending_note_link: Option<String>,
+    pub pending_note_link: Option<String>,
     pub search_query: String,
+    last_content_change: Instant,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum EditorState {
     View,
     Edit,
@@ -53,8 +55,9 @@ impl App {
             sidebar_width: settings.sidebar_width,
             editor_state: None,
             journal_state: None,
-            _pending_note_link: None,
+            pending_note_link: None,
             search_query: String::new(),
+            last_content_change: Instant::now(),
         };
 
         if !needs_password {
@@ -125,6 +128,21 @@ impl App {
         }
     }
 
+    /// Auto-save if enough time has passed since the last content change.
+    pub fn maybe_auto_save(&mut self) {
+        if self.editor_state == Some(EditorState::Edit) {
+            let elapsed = self.last_content_change.elapsed();
+            if elapsed.as_secs() >= 3 {
+                self.save_current_note();
+                self.last_content_change = Instant::now();
+            }
+        }
+    }
+
+    pub fn mark_content_changed(&mut self) {
+        self.last_content_change = Instant::now();
+    }
+
     pub fn delete_current_note(&mut self) {
         if let Some(ref id) = self.selected_note_id {
             let id_clone = id.clone();
@@ -184,6 +202,9 @@ impl eframe::App for App {
         // Handle theme
         let theme = self.settings.theme.to_egui();
         ctx.set_theme(theme);
+
+        // Auto-save if in edit mode
+        self.maybe_auto_save();
 
         // Handle password dialog
         if self.show_password_dialog {

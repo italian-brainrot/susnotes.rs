@@ -8,7 +8,7 @@ license = "MIT"
 [dependencies]
 eframe = { version = "0.32", features = ["default"] }
 egui = "0.32"
-egui_extras = { version = "0.32", features = ["image"] }
+egui_extras = "0.32"
 pulldown-cmark = "0.12"
 aes-gcm = { version = "0.10", features = ["std"] }
 hmac = "0.12"
