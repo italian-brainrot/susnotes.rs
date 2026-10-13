@@ -29,9 +29,9 @@ User can specify a portable folder which contains all notes and configs, and can
 
 ## Technology
 
-**99+% Rust**. Dependencies should also be pure Rust whenever possible.
+**Pure Rust** for both frontend and backend. Dependencies should also be pure Rust whenever possible.
 
-Note: Zed (cloned `/home/jj/distrobox/ubuntu/projects/zed`) is a code editor written entirely in Rust. Can be used for reference.
+Note: Zed (cloned `/home/jj/distrobox/ubuntu/projects/zed`) is a code editor written entirely in Rust (both frontend and backend). ArtCraft (`/run/media/jj/Ext2TB/Files/Extra/Programming2/Libs/ArtCraft`) is a suite of clean-room implementations of Adobe Photoshop, Premiere Pro, MS Word, etc written from scratch in pure Rust (but with TS frontend). Can be used for reference.
 
 ## Coding guide for AI agents
 
@@ -44,4 +44,4 @@ Note: Zed (cloned `/home/jj/distrobox/ubuntu/projects/zed`) is a code editor wri
 
 ## Development workflow
 
-`git` and `gh` are installed and configured. Before making any changes, you must switch to a new branch, and after you are done, make a pull request. The user will then trigger a code review workflow, and your PR will be accepted and merged, or you will receive a comment on what needs to be refined. Always follow this workflow unless explicilty asked otherwise by user.
+`git` and `gh` are installed and configured. Everything must be developed on a new branch and then merged via a pull request, so before making any changes, make sure you are on the correct branch. If you are starting a new task, create a new branch, then make a PR once you are done. If you are working on an existing PR, make sure you have its branch selected, and update the PR with a comment once you are done. Use `--body-file` for comments to avoid issues with special characters. The user will then trigger a code review workflow, and your PR will be accepted and merged, or you will receive a comment on what needs to be refined. Always follow this workflow unless explicilty requested otherwise by user.
